@@ -1,153 +1,210 @@
-# Bert In Relation Extraction
+# Overview
 
-大创所需，所以写了一个模型用来完成关系抽取（模型很简单，一拍脑袋想的然后就写了），**欢迎Star，Folk以及PR！！（算是对开源和整理的肯定吧）**
+本项目是一个简单的知识图谱构建实现，采用流水线思路：先对文本进行实体识别，然后将识别出的实体和对应的文本进行关系抽取，主要基于以下模型&技术栈：
 
-最后在百度DuIE数据集的完整测试集上达到95.37%正确率
+- 命名实体识别（NER）：[百度LAC模型](https://github.com/baidu/lac)
+- 关系抽取：[基于BERT实现关系抽取](https://github.com/Ricardokevins/Bert-In-Relation-Extraction)
 
-效果：
+# Environment
 
-```
-Source Text:  《在夏天冬眠》是容祖儿演唱的一首歌曲，收录于专辑《独照》中
-Entity1:  独照  Entity2:  在夏天冬眠  Predict Relation:  所属专辑  True Relation:  所属专辑
-
-
-Source Text:  2.花千骨花千骨是由慈文传媒集团制作并发行，高林豹、林玉芬、梁胜权联合执导，霍建华 、赵丽颖领衔主演，蒋欣、杨烁、张丹峰、马可、徐海乔、李纯等主演的古装仙侠玄幻 仙侠剧
-Entity1:  赵丽颖  Entity2:  花千骨  Predict Relation:  主演  True Relation:  主演
-
-
-Source Text:  在与王祖贤恋爱期间的齐秦，也是他事业最辉煌的时期，《大约在冬季》《无情的雨》《不让我的眼泪陪我过夜》《如果云知道》《夜夜夜夜》等经典曲目都是他为王祖贤所创作的，从这些歌也能感受到两个人是真爱，但是为什么就是没有一个结果呢
-Entity1:  齐秦  Entity2:  大约在冬季  Predict Relation:  歌手  True Relation:  歌手
-
-
-Source Text:  《甜蜜与厮杀》是连载在红袖添香网上的一部奇幻魔法小说，作者是kijimi1
-Entity1:  kijimi1  Entity2:  甜蜜与厮杀  Predict Relation:  作者  True Relation:  作者
+```shell
+# conda环境生成
+conda create --name bert python=3.6
+# pytorch（阿里云学生机只支持cpu……）
+conda install pytorch==1.5.1 torchvision==0.6.1 cpuonly -c pytorch
+# transformers（使用国内源）
+pip install transformers==2.5.1 -i https://pypi.tuna.tsinghua.edu.cn/simple
+# flask（python web server）
+conda install flask
+conda install flask-cors
+# 百度LAC开源项目（国内源）
+pip install LAC -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
+# Run
 
+```shell
+# train model
+python loader.py  # Preprocess the downloaded data
+python train.py   # train bert fine-tune
 
-# 使用方法
-
-## 准备
-
-1. 将DUIE文件路径放置于代码同目录（或者自己的数据，具体可见loader.py)，更加具体的获取和数据处理见下文
-
-2. 将bert-base-chinese放置于同目录下的bert-base-chinese下或者自行指定位置
-3. 安装pytorch，cuda，transformer，numpy等组件（实际测试可运行环境为**pytorch=1.5.1 transformers=2.5.1**)
-
-## train and eval
-
-（注意，在此之前，请做好数据的获取和预处理，步骤见文）
-
-**python3 main.py**执行训练，并得到Fine-Tuing后的BERT
-
-**python3 demo.py**得到样例输出，或自行阅读代码，修改test函数的传入参数内容即可自定义。
-
-
-
-如果仅用于测试和实际使用，可以下载已经训练好的Model，然后调用demo.py下对应函数
-
-**caculate_acc**：计算每一个类别的正确率
-
-**demo_output**：随机选择样本，输出原文，实体对以及预测的关系，即实例输出
-
-
-
-
-
-Model download（92.5%正确率的）
-
-地址：https://pan.baidu.com/s/123qVcRa5SBKcMBLWxP5bKQ
-
-提取码：bert
-
-Model download（95.37%正确率的）
-
-链接：https://pan.baidu.com/s/1ffOzN3FZ1foepB6NcSF5qQ 
-提取码：bert
-
-# 数据
-
-数据使用的是百度发布的DUIE数据，包含了实体识别和关系抽取
-
-原数据地址：https://ai.baidu.com/broad/download?dataset=dureader
-
-打开后在左侧栏选择knowledge extraction，然后如下界面点击下载train_data.json和dev_data.json，然后放到对应的位置
-
-**运行loader.py里的prepare_data**，观察到目录里生成了**train.json和dev.json**
-
-截止这里，数据的预处理完成了，可以运行main和demo
-
-![Inkedimage-20210204112312401_LI](README.assets/Inkedimage-20210204112312401_LI.jpg)
-
-
-
-我对数据进行了预处理，提取关系抽取需要的部分
-
-关系设定有49类，还是非常的丰富的
-
-```
-id2rel={0: 'UNK', 1: '主演', 2: '歌手', 3: '简称', 4: '总部地点', 5: '导演', 
-        6: '出生地', 7: '目', 8: '出生日期', 9: '占地面积', 10: '上映时间',
-        11: '出版社', 12: '作者', 13: '号', 14: '父亲', 15: '毕业院校', 
-        16: '成立日期', 17: '改编自', 18: '主持人', 19: '所属专辑', 
-        20: '连载网站', 21: '作词', 22: '作曲', 23: '创始人', 24: '丈夫', 
-        25: '妻子', 26: '朝代', 27: '民族', 28: '国籍', 29: '身高', 30: '出品公司', 
-        31: '母亲', 32: '编剧', 33: '首都', 34: '面积', 35: '祖籍', 36: '嘉宾', 
-        37: '字', 38: '海拔', 39: '注册资本', 40: '制片人', 41: '董事长', 42: '所在城市',
-        43: '气候', 44: '人口数量', 45: '邮政编码', 46: '主角', 47: '官方语言', 48: '修业年限'}   
-    
+# start web-server ( port:5590 )
+kill -9 $(lsof -i:5590 -t) # If the port is occupied
+nohup python main.py &
 ```
 
-数据的格式如下，ent1和ent2是实体，rel是关系
+# Structure
 
-![image.png](figure/image-1603561010980.png)
-
-
+- **bert-base-chinese/**
+  - bert中文预训练模型，下载地址：https://huggingface.co/bert-base-chinese#
+- **loader.py**
+  - 数据：[Baidu Research Open-Access Dataset - Download](https://ai.baidu.com/broad/download?dataset=dureader) 选择**Knowledge Extraction**下载 train_data.json 和 dev_data.json 
+  - 预处理数据，生成 train.json 和 dev.json 
+  - 提供加载模型的loader函数供其他文件调用
+- **model.py**
+  - 定义BERT_Classifier类
+- **train.py**
+  - 根据bert预训练模型进行fine-tune，并输出net模型（文件名表示正确率）
+- **demo.py**（需要训练后的net模型）
+  - **caculate_acc**：计算每一个类别的正确率
+  - **demo_output**：随机选择样本，输出原文，实体对以及预测的关系，即实例输出
+- **main.py**（需要训练后的net模型）
+  - Python-Server 入口，启动一个python服务，可以通过url访问（接口文档见下一节）
+  - **注**：由于作者部署的云服务器不支持cuda，所以改用了torch+cpu，您可以参考demo.py中的demo_output函数来使用GPU加速
 
 # Model
 
-模型就是直接使用Bert用于序列分类的（BertEncoder+Fc+CrossEntropy）
+训练数据说明：
 
-具体的处理就是把ent1，ent2和sentence直接拼接送进模型
+- 训练集：36w条训练数据
+- 测试集：45577条测试数据
 
-相对我之前对Bert的粗糙处理，这里加上了MASK-Attention一起送进模型
+训练参数：
 
+- 10 Epoch，0.001学习率，设置label共有49种（包含UNK，代表新关系和不存在关系）
 
+训练结果：
 
-# Result
+- fine-tune后模型在测试集上正确率达到95%
 
-从百度的原数据中选择20000条，测试数据2000条（原数据相对很小的一部分）
+# Interface
 
-训练参数：10 Epoch，0.001学习率，设置label共有49种（包含UNK，代表新关系和不存在关系）
+## 1. Identity entity
 
-然后在训练前和训练后的分别在测试数据上测试，可以看到**Fine-Tuing**高度有效
+**URL**
 
-**测试集正确率达到 92.5%**
+localhost:5590/identity
 
+**RequestBody**
 
-**修正：后来在所有的数据上训练和测试，测试数据36w，测试数据4w，eval正确率95+%**
+```
+{
+    "text": 文本（最好不要太长，可以测试一下极限情况）,
+    "is_ignore": 是否忽略实体个数少于两个的分句
+}
+```
 
+**Response**
 
-![image.png](figure/image-1603561010979.png)
+段落拆分为数个句子，对于每一个句子返回text和entity列表，目前支持类型如下：
 
+- 人名
+- 地名
+- 机构名
+- 时间
+- 专有名词
+- 作品名
 
+```
+{
+    "errmsg": null,
+    "context": [
+        {
+            "text": "《初中物理竞赛热点专题/竞赛热点专题丛书》是2001年湖南师范大学出版社出版的图书，作者是武建谋，宋善炎，严定新",
+            "entity": [
+                {
+                    "ent": "初中物理竞赛热点专题/竞赛热点专题丛书",
+                    "type": "作品名"
+                },
+                {
+                    "ent": "2001年",
+                    "type": "时间"
+                },
+                {
+                    "ent": "湖南师范大学出版社",
+                    "type": "组织名"
+                },
+                {
+                    "ent": "武建谋",
+                    "type": "人名"
+                },
+                {
+                    "ent": "宋善炎",
+                    "type": "人名"
+                },
+                {
+                    "ent": "严定新",
+                    "type": "人名"
+                }
+            ]
+        }
+    ]
+}
+```
 
-# 实际测试
+## 2. Relation Extraction
 
-在数据中抽取一部分实际测试
+**URL**
 
-效果不错
+localhost:5590/relation/extraction
 
-![image.png](figure/image-1603561010074.png)
+**RequestBody**
 
-![image.png](figure/image.png)
+每一个句子支持输入超过两个entity（以列表形式），后端会自动两两组合进行关系抽取，但最好不要超过5个实体，因为服务器太烂了会非常慢！
 
+```
+[
+    {
+        "text": 句子,
+        "entitys": [
+            ent1,
+            ent2,
+            ent3
+        ]
+    },
+    {
+        "text": 句子,
+        "entitys": [
+            ent1,
+            ent2,
+            ent3
+        ]
+    }
+]
+```
 
+**Response**
 
-**2020.11.6：修复了demo.py里的Bug，无需bert-base-chinese依赖**
+```
+{
+    "errmsg": null,
+    "context": [
+        {
+            "text": 句子
+            "relations": [
+                {
+                    "ent1": "周星驰",
+                    "ent2": "喜剧之王",
+                    "rel": "主演"
+                },
+                {
+                    "ent1": "周星驰",
+                    "ent2": "独门秘笈",
+                    "rel": "导演"
+                },
+                {
+                    "ent1": "喜剧之王",
+                    "ent2": "独门秘笈",
+                    "rel": "改编自"
+                }
+            ]
+        },
+        {
+            "text": 句子,
+            "relations": [
+                {
+                    "ent1": "周星驰",
+                    "ent2": "喜剧之王",
+                    "rel": "主演"
+                }
+            ]
+        }
+    ]
+}
+```
 
-**2021.2.3 ：更新了demo.py，优化了结构**
+## Test text
 
-**2021.2.4： 更新了readme关于数据获取部分的说明，上传和更新了第二次训练95%Acc的模型文件** 
+**text1**：如何演好自己的角色，请读《演员自我修养》《喜剧之王》周星驰崛起于穷困潦倒之中的独门秘笈。爱德华·尼科·埃尔南迪斯（1986-），是一位身高只有70公分哥伦比亚男子，体重10公斤，只比随身行李高一些，2010年获吉尼斯世界纪录正式认证，成为全球当今最矮的成年男人。《身外身梦中梦》是连载于晋江文学城的一部原创类小说，作者是苍生笑。
 
-**2021.3.6： 修改了模型的定义，更新了代码的结构**
+**text2**：《娘家的故事第二部》是张玲执导，林在培、何赛飞等主演的电视剧。禅意歌者刘珂矣《一袖云》中诉知己…绵柔纯净的女声，将心中的万水千山尽意勾勒于这清素画音中。歌手银临毕业于南京大学。外交部华春莹毕业于南京大学。
